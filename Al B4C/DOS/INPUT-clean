@@ -1,1 +1,29 @@
+INPUT_PARAMETERS
+suffix              Al_B4C_RE_DOS
+calculation         scf
+esolver_type        ksdft
+basis_type          lcao
+ks_solver           genelpa
 
+stru_file           STRU
+kpoint_file         KPT
+pseudo_dir          ./
+orbital_dir         ./
+
+symmetry            0
+nspin               2
+ecutwfc             100
+scf_thr             1.0e-7
+scf_nmax            200
+
+smearing_method     gaussian
+smearing_sigma      0.01
+mixing_type         broyden
+mixing_beta         0.20
+mixing_ndim         8
+
+out_chg             1
+out_dos             1
+dos_emin_ev         -20
+dos_emax_ev         20
+dos_edelta_ev       0.01
