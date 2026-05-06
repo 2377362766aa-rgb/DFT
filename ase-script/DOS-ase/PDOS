@@ -1,1 +1,161 @@
+import re
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from ase.io import read
 
+PDOS_FILE = r"C:\Users\lenovo\Downloads\PDOS"
+STRU_FILE = r"C:\Users\lenovo\Downloads\STRU Gd"
+FERMI_EV = 0.0   # 如果能量已经相对费米能级，保持0；否则填入FERMI_ENERGY中的值
+
+L_MAP = {0: "s", 1: "p", 2: "d", 3: "f"}
+
+def read_abacus_pdos(filename):
+    text = open(filename, "r", encoding="utf-8", errors="ignore").read()
+
+    nspin = int(re.search(r"<nspin>\s*(\d+)\s*</nspin>", text).group(1))
+
+    eblock = re.search(
+        r"<energy_values[^>]*>(.*?)</energy_values>",
+        text,
+        flags=re.S
+    ).group(1)
+
+    energies = np.array([float(x) for x in eblock.split()]) - FERMI_EV
+
+    orbital_blocks = re.findall(
+        r"<orbital(.*?)>\s*<data>(.*?)</data>",
+        text,
+        flags=re.S
+    )
+
+    rows = []
+
+    for header, data in orbital_blocks:
+        atom_index = int(re.search(r'atom_index="\s*(\d+)"', header).group(1))
+        species = re.search(r'species="\s*([^"]+)"', header).group(1).strip()
+        l = int(re.search(r'l="\s*(-?\d+)"', header).group(1))
+        orb = L_MAP.get(l, f"l{l}")
+
+        vals = np.array([float(x) for x in data.split()])
+
+        if nspin == 1:
+            up = vals
+            down = np.zeros_like(vals)
+        elif nspin == 2:
+            arr = vals.reshape(-1, 2)
+            up = arr[:, 0]
+            down = arr[:, 1]
+        else:
+            raise ValueError(f"Unsupported nspin={nspin}")
+
+        for e, u, d in zip(energies, up, down):
+            rows.append({
+                "energy_eV": e,
+                "atom_index": atom_index,
+                "species": species,
+                "l": l,
+                "orbital": orb,
+                "up": u,
+                "down": d,
+            })
+
+    return pd.DataFrame(rows)
+
+def plot_orbital_sum(df, species=None, orbital=None, title=None, out="pdos.png"):
+    sub = df.copy()
+
+    if species is not None:
+        sub = sub[sub["species"] == species]
+
+    if orbital is not None:
+        sub = sub[sub["orbital"] == orbital]
+
+    g = sub.groupby("energy_eV")[["up", "down"]].sum().reset_index()
+
+    plt.figure(figsize=(7, 5))
+    plt.plot(g["energy_eV"], g["up"], label="spin up")
+    plt.plot(g["energy_eV"], -g["down"], label="spin down")
+    plt.axvline(0, linestyle="--", linewidth=1)
+    plt.xlabel("Energy - Ef (eV)")
+    plt.ylabel("PDOS (states/eV)")
+    plt.title(title or out)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out, dpi=300)
+    plt.close()
+
+    return g
+
+def integrate_window(df, emin=-2, emax=2):
+    sub = df[(df["energy_eV"] >= emin) & (df["energy_eV"] <= emax)]
+    result = []
+
+    for (sp, orb), g in sub.groupby(["species", "orbital"]):
+        x = g.groupby("energy_eV")[["up", "down"]].sum().reset_index()
+        up_int = np.trapz(x["up"], x["energy_eV"])
+        down_int = np.trapz(x["down"], x["energy_eV"])
+        result.append({
+            "species": sp,
+            "orbital": orb,
+            "integral_up": up_int,
+            "integral_down": down_int,
+            "integral_total": up_int + down_int,
+            "spin_polarization": up_int - down_int,
+        })
+
+    return pd.DataFrame(result)
+
+if __name__ == "__main__":
+    atoms = read(STRU_FILE, format="abacus")
+    print("ASE读取STRU成功：")
+    print(atoms)
+    print("元素统计：", atoms.symbols.formula.count())
+
+    df = read_abacus_pdos(PDOS_FILE)
+
+    df.to_csv("PDOS_all_orbitals.csv", index=False)
+
+    # 全体系 s/p/d/f
+    for orb in ["s", "p", "d", "f"]:
+        plot_orbital_sum(
+            df,
+            orbital=orb,
+            title=f"Total {orb}-PDOS",
+            out=f"PDOS_total_{orb}.png"
+        )
+
+    # Eu-4f重点分析
+    if "Eu" in df["species"].unique():
+        plot_orbital_sum(
+            df,
+            species="Eu",
+            orbital="f",
+            title="Eu 4f PDOS",
+            out="PDOS_Eu_4f.png"
+        )
+
+        plot_orbital_sum(
+            df,
+            species="Eu",
+            title="Eu total PDOS",
+            out="PDOS_Eu_total.png"
+        )
+
+    # 每个元素的总PDOS
+    for sp in sorted(df["species"].unique()):
+        plot_orbital_sum(
+            df,
+            species=sp,
+            title=f"{sp} total PDOS",
+            out=f"PDOS_{sp}_total.png"
+        )
+
+    table = integrate_window(df, emin=-2, emax=2)
+    table.to_csv("PDOS_integral_-2_2eV.csv", index=False)
+
+    print("已输出：")
+    print("PDOS_all_orbitals.csv")
+    print("PDOS_integral_-2_2eV.csv")
+    print("PDOS_Eu_4f.png")
+    print("PDOS_total_s/p/d/f.png")
