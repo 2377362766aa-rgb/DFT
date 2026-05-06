@@ -1,0 +1,46 @@
+INPUT_PARAMETERS
+# 基础工作设置
+suffix              Al_B4C_slab           # 任务名称，对应输出文件夹 OUT.Al_B4C_slab
+ntype               3                      # 原子种类数目 (Al, B, C)
+calculation         md                     # 关键！选 md 开启分子动力学计算
+basis_type          lcao                   # 关键！使用数值原子轨道大幅提速
+
+# 文件路径
+pseudo_dir          ./
+orbital_dir         ./
+
+# 精度控制
+ecutwfc             100                    # 平面波截断能 (单位：Rydberg，相当于约 1360 eV)
+scf_thr             1e-7                   # SCF自洽收敛阈值 (单位：Rydberg)
+scf_nmax            50                     # SCF最大迭代步数
+smearing_method     mp                     # 使用Methfessel-Paxton展宽加速收敛
+smearing_sigma      0.01                   # 展宽宽度 (单位：Rydberg)
+mixing_beta         0.3                    # 电荷密度混合比例，界面体系可能需要较小的值
+
+# 对称性与偶极修正（Slab模型必备）
+symmetry            0                      # 关闭对称性
+efield_flag         1                      # 开启外场标志
+dip_cor_flag        1                      # 开启偶极修正，消除slab模型层间虚假场
+efield_dir          2                      # 偶极修正方向为垂直于表面的z轴
+efield_pos_max      0.85                   # 势能函数在超胞中的相对位置，需落在真空层区域
+efield_pos_dec      0.1
+efield_amp          0.0                    # 电场振幅设为0，仅用偶极修正
+
+# MD模拟具体参数
+md_nstep            15000                  # MD总步数 (按1fs步长算，共15 ps)
+md_dt               1.0                    # MD时间步长 (单位：fs)
+md_tfirst           300                    # 初始温度，可设为300 K开始升温
+md_tlast            600                    # 目标温度 (单位：K)
+md_restart          0                      # 1表示续算，0表示从头开始
+md_dumpfreq         100                    # 每100步记录一次原子受力
+md_restartfreq      5000                   # 每5000步保存一次续算文件
+md_seed             -1                     # 随机数种子，-1表示随机生成
+md_tolerance        0.5                    # 温度允许波动范围 (单位：K)
+md_type             nvt                    # 系综选择，Nose-Hoover热浴
+md_thermostat       nhc                    # 热浴类型，Nose-Hoover chains
+
+# 输出选项
+out_chg             0
+out_pot             0
+out_dos             0
+out_band            0
