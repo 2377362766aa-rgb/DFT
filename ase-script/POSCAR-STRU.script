@@ -1,0 +1,55 @@
+from pathlib import Path
+from ase.io import read, write
+
+# 1. 设置输入和输出目录
+
+poscar_dir = Path(r"D:\shuoshi\essay\11\POSCAR")
+stru_dir = Path(r"D:\shuoshi\essay\11\STRU")
+
+
+stru_dir.mkdir(parents=True, exist_ok=True)
+poscar_files = []
+
+poscar_files.extend(poscar_dir.glob("POSCAR"))
+poscar_files.extend(poscar_dir.glob("POSCAR*"))
+poscar_files.extend(poscar_dir.glob("*.vasp"))
+poscar_files.extend(poscar_dir.glob("*.POSCAR"))
+
+# 去重并排序
+poscar_files = sorted(set(poscar_files))
+
+if not poscar_files:
+    print(f"未在目录中找到 POSCAR 文件: {poscar_dir}")
+else:
+    print(f"找到 {len(poscar_files)} 个 POSCAR 文件，开始转换...\n")
+
+    for poscar_path in poscar_files:
+        try:
+            # 读取 VASP POSCAR 文件
+            atoms = read(poscar_path, format="vasp")
+
+            # 每个 POSCAR 输出为一个独立的 STRU 文件
+            # 例如：
+            # POSCAR_Nd -> STRU_Nd
+            # POSCAR -> STRU
+            if poscar_path.name == "POSCAR":
+                stru_name = "STRU"
+            else:
+                stru_name = "STRU_" + poscar_path.stem.replace("POSCAR", "").strip("_")
+
+                # 避免生成空文件名
+                if stru_name == "STRU_":
+                    stru_name = "STRU"
+
+            stru_path = stru_dir / stru_name
+
+            # 写出为 ABACUS STRU 格式
+            write(stru_path, atoms, format="abacus")
+
+            print(f"转换成功: {poscar_path.name}  ->  {stru_path.name}")
+
+        except Exception as e:
+            print(f"转换失败: {poscar_path.name}")
+            print(f"错误信息: {e}\n")
+
+    print("\n全部转换完成。")
