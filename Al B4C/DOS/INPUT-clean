@@ -13,7 +13,7 @@ orbital_dir         ./
 symmetry            0
 nspin               2
 ecutwfc             100
-scf_thr             1.0e-7
+scf_thr             1.0e-5
 scf_nmax            200
 
 smearing_method     gaussian
