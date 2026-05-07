@@ -30,7 +30,7 @@ mixing_beta         0.15
 mixing_ndim         8
 
 out_chg             1
-out_dos             1
+out_dos             2
 dos_emin_ev         -20
 dos_emax_ev         20
 dos_edelta_ev       0.01
