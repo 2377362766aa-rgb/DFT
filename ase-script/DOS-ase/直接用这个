@@ -1,0 +1,127 @@
+import re
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+PDOS_FILE = r"D:\shuoshi\essay\11\DOS\PDOS Gd"
+FERMI_EV = 0.0   # 如果能量已经相对费米能级，保持0；否则填入FERMI_ENERGY中的值
+OUTPUT_DIR = Path(r"D:\shuoshi\essay\11\DOS")
+
+L_MAP = {0: "s", 1: "p", 2: "d", 3: "f"}
+
+def read_abacus_pdos(filename):
+    text = open(filename, "r", encoding="utf-8", errors="ignore").read()
+
+    nspin = int(re.search(r"<nspin>\s*(\d+)\s*</nspin>", text).group(1))
+
+    eblock = re.search(
+        r"<energy_values[^>]*>(.*?)</energy_values>",
+        text,
+        flags=re.S
+    ).group(1)
+
+    energies = np.array([float(x) for x in eblock.split()]) - FERMI_EV
+
+    orbital_blocks = re.findall(
+        r"<orbital(.*?)>\s*<data>(.*?)</data>",
+        text,
+        flags=re.S
+    )
+
+    rows = []
+
+    for header, data in orbital_blocks:
+        atom_index = int(re.search(r'atom_index="\s*(\d+)"', header).group(1))
+        species = re.search(r'species="\s*([^"]+)"', header).group(1).strip()
+        l = int(re.search(r'l="\s*(-?\d+)"', header).group(1))
+        orb = L_MAP.get(l, f"l{l}")
+
+        vals = np.array([float(x) for x in data.split()])
+
+        if nspin == 1:
+            up = vals
+            down = np.zeros_like(vals)
+        elif nspin == 2:
+            arr = vals.reshape(-1, 2)
+            up = arr[:, 0]
+            down = arr[:, 1]
+        else:
+            raise ValueError(f"Unsupported nspin={nspin}")
+
+        for e, u, d in zip(energies, up, down):
+            rows.append({
+                "energy_eV": e,
+                "atom_index": atom_index,
+                "species": species,
+                "l": l,
+                "orbital": orb,
+                "up": u,
+                "down": d,
+            })
+
+    return pd.DataFrame(rows)
+
+def build_species_tdos(df, species):
+    sub = df[df["species"] == species]
+    tdos = sub.groupby("energy_eV", as_index=False)[["up", "down"]].sum()
+    tdos["total"] = tdos["up"] + tdos["down"]
+    tdos["spin_polarization"] = tdos["up"] - tdos["down"]
+    return tdos
+
+def build_species_orbital_pdos(df, species):
+    sub = df[df["species"] == species]
+    pdos = (
+        sub.groupby(["energy_eV", "orbital"], as_index=False)[["up", "down"]]
+        .sum()
+        .sort_values(["orbital", "energy_eV"])
+    )
+    pdos["total"] = pdos["up"] + pdos["down"]
+    pdos["spin_polarization"] = pdos["up"] - pdos["down"]
+    return pdos
+
+def integrate_window(df, emin=-2, emax=2):
+    sub = df[(df["energy_eV"] >= emin) & (df["energy_eV"] <= emax)]
+    result = []
+
+    for (sp, orb), g in sub.groupby(["species", "orbital"]):
+        x = g.groupby("energy_eV")[["up", "down"]].sum().reset_index()
+        up_int = np.trapz(x["up"], x["energy_eV"])
+        down_int = np.trapz(x["down"], x["energy_eV"])
+        result.append({
+            "species": sp,
+            "orbital": orb,
+            "integral_up": up_int,
+            "integral_down": down_int,
+            "integral_total": up_int + down_int,
+            "spin_polarization": up_int - down_int,
+        })
+
+    return pd.DataFrame(result)
+
+def export_species_tables(df, outdir):
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    for species in sorted(df["species"].unique()):
+        tdos = build_species_tdos(df, species)
+        pdos = build_species_orbital_pdos(df, species)
+
+        tdos.to_csv(outdir / f"{species}_TDOS.csv", index=False)
+        pdos.to_csv(outdir / f"{species}_PDOS_by_orbital.csv", index=False)
+
+if __name__ == "__main__":
+    df = read_abacus_pdos(PDOS_FILE)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    df.to_csv(OUTPUT_DIR / "PDOS_all_orbitals.csv", index=False)
+    export_species_tables(df, OUTPUT_DIR)
+
+    table = integrate_window(df, emin=-2, emax=2)
+    table.to_csv(OUTPUT_DIR / "PDOS_integral_-2_2eV.csv", index=False)
+
+    print("已输出：")
+    print(OUTPUT_DIR / "PDOS_all_orbitals.csv")
+    for sp in sorted(df["species"].unique()):
+        print(OUTPUT_DIR / f"{sp}_TDOS.csv")
+        print(OUTPUT_DIR / f"{sp}_PDOS_by_orbital.csv")
+    print(OUTPUT_DIR / "PDOS_integral_-2_2eV.csv")
