@@ -1,0 +1,1 @@
+source $CONDA_ROOT/etc/profile.d/conda.sh 家目录下进入conda环境安装插件前必须先
