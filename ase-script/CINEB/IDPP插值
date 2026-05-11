@@ -1,0 +1,57 @@
+import os
+import shutil
+
+from ase.io import read, write
+from ase.mep import NEB
+
+initial_stru = r"D:\shuoshi\essay\11\neb\clean\00"
+final_stru   = r"D:\shuoshi\essay\11\neb\clean\06"
+output_dir = r"D:\shuoshi\essay\11\neb\clean\images"
+
+n_intermediate = 5
+n_total = n_intermediate + 2
+
+initial = read(initial_stru, format="abacus")
+final   = read(final_stru, format="abacus")
+
+if len(initial) != len(final):
+    raise ValueError("IS 和 FS 原子数不一致")
+
+if initial.get_chemical_symbols() != final.get_chemical_symbols():
+    raise ValueError("IS 和 FS 元素顺序不一致")
+
+if not (initial.cell == final.cell).all():
+    raise ValueError("IS 和 FS 晶胞不一致")
+
+images = [initial.copy()]
+
+for i in range(n_intermediate):
+    images.append(initial.copy())
+
+images.append(final.copy())
+
+neb = NEB(images)
+
+try:
+    neb.interpolate(method="idpp", mic=False)
+    print("使用 IDPP 插值成功")
+
+if os.path.exists(output_dir):
+    shutil.rmtree(output_dir)
+
+os.makedirs(output_dir)
+
+for i, atoms in enumerate(images):
+
+    img_dir = os.path.join(output_dir, f"{i:02d}")
+    os.makedirs(img_dir)
+
+    out_file = os.path.join(img_dir, "STRU")
+
+    write(out_file, atoms, format="abacus")
+
+write(os.path.join(output_dir, "neb_path.xyz"), images)
+
+print("插值完成")
+print(f"共生成 {n_total} 个 images")
+print("目录：images/00 ~ images/06")
