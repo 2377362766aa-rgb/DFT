@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+from ase.io import read
+from ase.visualize import view
+
+traj_file = r"C:\Users\lenovo\Downloads\init_cineb_chain.traj"
+
+# 读取 traj 中所有 images
+images = read(traj_file, index=":")
+
+print(f"成功读取: {traj_file}")
+print(f"共包含 {len(images)} 个 images")
+
+for i, atoms in enumerate(images):
+    print(f"Image {i}: atoms = {len(atoms)}, formula = {atoms.get_chemical_formula()}")
+
+# 打开 ASE 图形界面
+view(images)
