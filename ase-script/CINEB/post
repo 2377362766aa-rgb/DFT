@@ -1,0 +1,110 @@
+from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+
+from ase.io import read, write
+from ase.mep.neb import NEBTools
+
+TRAJ_FILE = r"D:\shuoshi\essay\11\neb\test\neb.traj"      # 你的 traj 绝对路径，记得改
+OUT_DIR = r"D:\shuoshi\essay\11\neb\test\post"             # 输出文件夹，记得改
+
+N_INTERMEDIATE = None
+
+def get_reaction_coordinate(images):
+    """
+    计算 NEB 路径的累积 reaction coordinate。
+
+    这里使用相邻 image 的原子笛卡尔坐标整体位移：
+        ds = sqrt(sum_i |R_i(image n+1) - R_i(image n)|^2)
+
+    返回：
+        rc      : 累积路径长度，单位 Å
+        rc_norm : 归一化 reaction coordinate，范围 0–1
+    """
+    rc = [0.0]
+
+    for i in range(1, len(images)):
+        pos_prev = images[i - 1].get_positions()
+        pos_curr = images[i].get_positions()
+
+        ds = np.linalg.norm(pos_curr - pos_prev)
+        rc.append(rc[-1] + ds)
+
+    rc = np.array(rc)
+
+    if rc[-1] > 0:
+        rc_norm = rc / rc[-1]
+    else:
+        rc_norm = rc
+
+    return rc, rc_norm
+
+traj_path = Path(TRAJ_FILE)
+out_dir = Path(OUT_DIR)
+out_dir.mkdir(parents=True, exist_ok=True)
+
+images_all = read(str(traj_path), index=":")
+
+if N_INTERMEDIATE is None:
+    n_images = NEBTools(images_all)._guess_nimages()
+else:
+    n_images = N_INTERMEDIATE + 2
+
+images = images_all[-n_images:]
+
+energies = np.array([img.get_potential_energy() for img in images])
+rel_energies = energies - energies[0]
+
+rc, rc_norm = get_reaction_coordinate(images)
+
+barrier = rel_energies.max()
+ts_index = int(rel_energies.argmax())
+reaction_energy = rel_energies[-1]
+
+print("Image    RC_norm     Energy/eV          Relative_Energy/eV")
+for i, (x, e, re) in enumerate(zip(rc_norm, energies, rel_energies)):
+    print(f"{i:5d}    {x: .6f}    {e: .10f}    {re: .10f}")
+
+print("\nNEB barrier      :", f"{barrier:.6f}", "eV")
+print("TS image index   :", ts_index)
+print("Reaction energy  :", f"{reaction_energy:.6f}", "eV")
+
+dat_file = out_dir / "neb_energy_for_origin.dat"
+csv_file = out_dir / "neb_energy_for_origin.csv"
+
+with open(dat_file, "w", encoding="utf-8") as f:
+    f.write("# Image_Index    Reaction_Coordinate_A    Normalized_Reaction_Coordinate    Energy_eV    Relative_Energy_eV\n")
+    for i, (r, rn, e, re) in enumerate(zip(rc, rc_norm, energies, rel_energies)):
+        f.write(f"{i:5d}    {r: .12f}    {rn: .12f}    {e: .12f}    {re: .12f}\n")
+
+with open(csv_file, "w", encoding="utf-8") as f:
+    f.write("Image_Index,Reaction_Coordinate_A,Normalized_Reaction_Coordinate,Energy_eV,Relative_Energy_eV\n")
+    for i, (r, rn, e, re) in enumerate(zip(rc, rc_norm, energies, rel_energies)):
+        f.write(f"{i},{r:.12f},{rn:.12f},{e:.12f},{re:.12f}\n")
+
+write(out_dir / "TS_image.cif", images[ts_index])
+write(out_dir / "TS_image.xyz", images[ts_index])
+
+write(out_dir / "neb_chain.xyz", images)
+write(out_dir / "neb_chain.traj", images)
+
+plt.figure(figsize=(6, 4))
+plt.plot(rc_norm, rel_energies, "o-", linewidth=2)
+plt.xlabel("Normalized reaction coordinate")
+plt.ylabel("Relative energy / eV")
+plt.title("NEB Energy Profile")
+plt.grid(True, linestyle="--", alpha=0.4)
+plt.tight_layout()
+
+fig_file = out_dir / "neb_profile_preview.png"
+plt.savefig(fig_file, dpi=300)
+plt.show()
+
+print("\nOutput files:")
+print(dat_file)
+print(csv_file)
+print(out_dir / "TS_image.cif")
+print(out_dir / "TS_image.xyz")
+print(out_dir / "neb_chain.xyz")
+print(out_dir / "neb_chain.traj")
+print(fig_file)
