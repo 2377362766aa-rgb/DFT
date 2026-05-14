@@ -1,0 +1,17 @@
+#!/bin/sh
+#SBATCH -N 1
+#SBATCH -n 40
+#SBATCH --partition=p1
+#SBATCH --output=%j.out
+#SBATCH --error=%j.err
+conda activate py313
+export ATST_PATH="/data/home/a2377362766/atst-tools-develop"
+export PYTHONPATH=${ATST_PATH}/src:$PYTHONPATH
+export abacus_path="/data/app/abacus/3.10.0-LTS-gcc1320-openmpi"
+module load gcc/13.2.0
+source ${abacus_path}/toolchain/abacus_env.sh
+export PATH=${abacus_path}/bin:$PATH
+export OMPI_MCA_btl_openib_allow_ib=true
+ulimit -s unlimited
+ulimit -l unlimited
+atst run config.yaml
