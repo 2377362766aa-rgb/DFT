@@ -1,0 +1,7 @@
+python /data/home/a2377362766/abacus-cohp-lcao-main/src/cohp.py \
+  --out-dir /data/home/a2377362766/abacus-cohp-lcao-main/examples/ni100_co_top/abacus_scf_efficiency/OUT.ABACUS \
+  --atom-i-orbs 0,1,2 \
+  --atom-j-orbs 100,101,102 \
+  --spin sum \
+  --output-prefix pair_sum
+#关键是怎么确定NAO轨道编号
