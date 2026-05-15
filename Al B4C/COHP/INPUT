@@ -1,0 +1,19 @@
+INPUT_PARAMETERS
+calculation scf
+basis_type lcao
+pseudo_dir /data/home/a2377362766/abacus-cohp-lcao-main/examples/data/PP
+orbital_dir /data/home/a2377362766/abacus-cohp-lcao-main/examples/data/ORB
+ecutwfc 100
+ks_solver genelpa
+nspin 2
+symmetry -1                          
+smearing_method gaussian
+smearing_sigma 0.004
+mixing_beta 0.4
+mixing_ndim 20
+scf_thr 1e-5
+scf_nmax 100
+kspacing 0.14
+out_mat_hs 1 8  #必须打开
+out_wfc_lcao 1  #必须打开
+out_app_flag 1  #必须打开
